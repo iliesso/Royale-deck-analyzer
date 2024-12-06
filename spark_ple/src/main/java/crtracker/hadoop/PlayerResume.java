@@ -85,7 +85,7 @@ public class PlayerResume implements Writable, Cloneable {
                 + ", touch=" + touch + ", score=" + score + "]";
     }
 
-    public boolean CompareTo(PlayerResume player1) {
+    public boolean compareTo(PlayerResume player1) {
         if (this.utag.equals(player1.utag) && this.deck.equals(player1.deck) && this.evo.equals(player1.evo) && this.tower.equals(player1.tower)) {
             return true;
         }

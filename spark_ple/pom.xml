@@ -2,10 +2,10 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<groupId>crtracker</groupId>
-	<artifactId>CRTrackerSpark</artifactId>
+	<groupId>crtracker.hadoop</groupId>
+	<artifactId>RoyaleDeckAnalyzer</artifactId>
 	<version>0.0.1</version>
-	<name>CRTrackerSpark</name>
+	<name>RoyaleDeckAnalyzer</name>
 	<properties>
 		<maven.compiler.source>8</maven.compiler.source>
 		<maven.compiler.target>1.8</maven.compiler.target>
@@ -27,7 +27,7 @@
 				<configuration>
 					<archive>
 						<manifest>
-							<mainClass>crtracker.DeckGenerator</mainClass>
+							<mainClass>crtracker.hadoop.DataCleaner</mainClass>
 						</manifest>
 					</archive>
 				</configuration>

@@ -3,6 +3,8 @@ package crtracker.hadoop;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Date;
 
 import org.apache.hadoop.io.Writable;
@@ -10,40 +12,53 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.IntWritable;
 
 public class GameResume implements Writable, Cloneable {
-    private long date; // Stockée en millisecondes depuis l'époque
-    private Text game;
-    private Text mode;
-    private IntWritable round;
-    private Text type;
-    private IntWritable winner;
+    private String date; 
+    private String game;
+    private String mode;
+    private int round;
+    private String type;
+    private int winner;
     private PlayerResume player1;
     private PlayerResume player2;
 
     // Constructeurs
-    public GameResume() {
-        this.game = new Text();
-        this.mode = new Text();
-        this.round = new IntWritable();
-        this.type = new Text();
-        this.winner = new IntWritable();
-        this.player1 = new PlayerResume();
-        this.player2 = new PlayerResume();
-    }
+    public GameResume() {}
 
-    public GameResume(Date date, String game, String mode, int round, String type, int winner, PlayerResume player1, PlayerResume player2) {
-        this.date = date.getTime();
-        this.game = new Text(game);
-        this.mode = new Text(mode);
-        this.round = new IntWritable(round);
-        this.type = new Text(type);
-        this.winner = new IntWritable(winner);
+    public GameResume(String date, String game, String mode, int round, String type, int winner, PlayerResume player1, PlayerResume player2) {
+        this.date = date;
+        this.game = game;
+        this.mode = mode;
+        this.round = round;
+        this.type = type;
+        this.winner = winner;
         this.player1 = player1;
         this.player2 = player2;
     }
 
     //Comparer à une autre game
-    public boolean CompareTo(GameResume other){
-        if(this.game.equals(other.game) && this.mode.equals(other.mode) && this.round.equals(other.round) && this.type.equals(other.type) && this.winner.equals(other.winner) && this.player1.CompareTo(other.player1) && this.player2.CompareTo(other.player2)){
+    public boolean compareTo(GameResume other){
+        if(this.game.equals(other.game) && this.mode.equals(other.mode) && this.round == other.round && this.type.equals(other.type) && compareDate(other.date) && comparePlayers(other.player1, other.player2)){
+            return true;
+        }
+        return false;
+    }
+
+    public boolean compareDate(String otherDate) {
+        try {
+            Instant thisInstant = Instant.parse(this.date);
+            Instant otherInstant = Instant.parse(otherDate);
+
+            long differenceInSeconds = Math.abs(ChronoUnit.SECONDS.between(thisInstant, otherInstant));
+
+            return differenceInSeconds <= 10;
+        } catch (Exception e) {
+            System.err.println("Erreur lors de la comparaison des dates : " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean comparePlayers(PlayerResume other1, PlayerResume other2){
+        if((this.player1.compareTo(other1) || this.player1.compareTo(other2)) && (this.player2.compareTo(other1) || this.player2.compareTo(other2))){
             return true;
         }
         return false;
@@ -52,31 +67,31 @@ public class GameResume implements Writable, Cloneable {
     // Implémentation de Writable
     @Override
     public void write(DataOutput out) throws IOException {
-        out.writeLong(date);
-        game.write(out);
-        mode.write(out);
-        round.write(out);
-        type.write(out);
-        winner.write(out);
+        out.writeUTF(date);
+        out.writeUTF(game);
+        out.writeUTF(mode);
+        out.writeInt(round);
+        out.writeUTF(type);
+        out.writeInt(winner);
         player1.write(out);
         player2.write(out);
     }
 
     @Override
     public void readFields(DataInput in) throws IOException {
-        date = in.readLong();
-        game.readFields(in);
-        mode.readFields(in);
-        round.readFields(in);
-        type.readFields(in);
-        winner.readFields(in);
+        date = in.readUTF();
+        game = in.readUTF();
+        mode = in.readUTF();
+        round = in.readInt();
+        type = in.readUTF();
+        winner = in.readInt();
         player1.readFields(in);
         player2.readFields(in);
     }
 
     @Override
     public String toString() {
-        return "GameResume [date=" + new Date(date) + ", game=" + game + ", mode=" + mode + ", round=" + round
+        return "GameResume [date=" + date + ", game=" + game + ", mode=" + mode + ", round=" + round
                 + ", type=" + type + ", winner=" + winner + ", player1=" + player1 + ", player2=" + player2 + "]";
     }
 }
