@@ -15,6 +15,7 @@ import org.apache.hadoop.mapreduce.*;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -176,15 +177,19 @@ public class DataCleaner extends Configured implements Tool {
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
 
-        FileInputFormat.setInputPaths(job, args[0]);
+        try{
+            FileInputFormat.setInputPaths(job, args[0]);
         FileOutputFormat.setOutputPath(job, new org.apache.hadoop.fs.Path(args[1]));
-
-        boolean success = job.waitForCompletion(true);
-        return success ? 0 : 1;
+        }
+        catch (Exception e){
+            System.out.println("Erreur lors de la configuration des entrées/sorties : " + e.getMessage());
+            return -1;
+        }
+        
+        return job.waitForCompletion(true) ? 0 : 1;
     }
 
     public static void main(String[] args) throws Exception {
-        int exitCode = new DataCleaner().run(args);
-        System.exit(exitCode);
+        System.exit(ToolRunner.run(new DataCleaner(), args));
     }
 }
