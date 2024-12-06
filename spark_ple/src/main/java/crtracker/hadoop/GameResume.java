@@ -5,11 +5,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Date;
 
 import org.apache.hadoop.io.Writable;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.IntWritable;
 
 public class GameResume implements Writable, Cloneable {
     private String date; 

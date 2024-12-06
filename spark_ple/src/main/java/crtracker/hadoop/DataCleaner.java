@@ -3,12 +3,16 @@ package crtracker.hadoop;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.TimeZone;
+import java.util.UUID;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.*;
@@ -33,32 +37,21 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 public class DataCleaner extends Configured implements Tool {
 
     public static class DataMapper extends Mapper<Object, Text, Text, Text> {
-        private ObjectMapper objectMapper;
-        private SimpleDateFormat inputFormat;
-        private SimpleDateFormat roundedFormat;
-        private Text outKey = new Text();
-        private Text outValue = new Text();
+        private ObjectMapper objectMapper = new ObjectMapper();
 
         @Override
-        protected void setup(Context context) {
-            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
-            objectMapper = new ObjectMapper();
-            inputFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-            inputFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-            roundedFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'");
-            roundedFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-        }
+        public void setup(Context context) {
+			Configuration conf = context.getConfiguration();
+		}
 
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             String line = value.toString().trim();
             if (line.isEmpty()) return;
-
             JsonNode root;
             try {
                 root = objectMapper.readTree(line);
             } catch (Exception e) {
-                // Pas un JSON valide
                 return;
             }
 
@@ -70,91 +63,44 @@ public class DataCleaner extends Configured implements Tool {
             }
 
             // Extraction des informations nécessaires
+            String playerAstr;
+            String playerBstr;
             String dateStr = dateNode.asText();
-            String playerA = players.get(0).has("utag") ? players.get(0).get("utag").asText() : "";
-            String playerB = players.get(1).has("utag") ? players.get(1).get("utag").asText() : "";
+            if (players.get(0).has("utag") && players.get(1).has("utag")) {
+                playerAstr = players.get(0).get("utag").asText();
+                playerBstr = players.get(1).get("utag").asText();
+            }
+            else {
+                return;
+            }
+            
 
             // Vérification des decks
             if (!checkDeck(players.get(0)) || !checkDeck(players.get(1))) {
                 return;
             }
-
-            // Normalisation de la date à la minute près
-            Date date;
-            try {
-                date = inputFormat.parse(dateStr);
-            } catch (ParseException e) {
-                return;
-            }
-            String roundedDate = roundedFormat.format(date);
-
-            // Tri des joueurs pour clé stable (indépendamment de l'ordre)
-            String[] sortedPlayers = {playerA, playerB};
-            Arrays.sort(sortedPlayers);
-
-            // Clé composite
-            String compositeKey = sortedPlayers[0] + "_" + sortedPlayers[1] + "_" + roundedDate;
-            outKey.set(compositeKey);
-            outValue.set(line);
+            
+            PlayerResume playerA = new PlayerResume(players.get(0).get("utag").asText(), players.get(0).get("ctag").asText(), players.get(0).get("trophies").asInt(), players.get(0).get("exp").asInt(), players.get(0).get("league").asInt(), players.get(0).get("bestleague").asInt(), players.get(0).get("deck").asText(), players.get(0).get("evo").asText(), players.get(0).get("tower").asText(), players.get(0).get("strength").asDouble(), players.get(0).get("crown").asInt(), players.get(0).get("elixir").asDouble(), players.get(0).get("touch").asInt(), players.get(0).get("score").asInt());
+            PlayerResume playerB = new PlayerResume(players.get(1).get("utag").asText(), players.get(1).get("ctag").asText(), players.get(1).get("trophies").asInt(), players.get(1).get("exp").asInt(), players.get(1).get("league").asInt(), players.get(1).get("bestleague").asInt(), players.get(1).get("deck").asText(), players.get(1).get("evo").asText(), players.get(1).get("tower").asText(), players.get(1).get("strength").asDouble(), players.get(1).get("crown").asInt(), players.get(1).get("elixir").asDouble(), players.get(1).get("touch").asInt(), players.get(1).get("score").asInt());
 
             // Émettre la ligne validée
-            context.write(outKey, outValue);
+            GameResume gameResume = new GameResume(dateStr, root.get("game").asText(), root.get("mode").asText(), root.get("round").asInt(), root.get("type").asText(), root.get("winner").asInt(), playerA, playerB);
+            context.write(new Text(UUID.randomUUID().toString()), new Text(objectMapper.writeValueAsString(gameResume)));
         }
 
-        /**
-         * Vérifie que le deck d'un joueur contient exactement 8 cartes.
-         * Ici, on suppose que 'deck' est une chaîne où chaque carte est représentée par 2 caractères.
-         * Donc 8 cartes = 16 caractères.
-         */
         private boolean checkDeck(JsonNode playerNode) {
             if (!playerNode.has("deck")) return false;
             String deck = playerNode.get("deck").asText();
-            // Vérification de la longueur
             return deck.length() == 16; 
         }
     }
-
-    /**
-     * Combiner (optionnel):
-     * Peut être identique au Reducer. Son rôle serait de ne garder qu'un enregistrement par clé localement.
-     * Si vous le souhaitez, vous pouvez décommenter et l'utiliser.
-     */
-    /*
-    public static class DataCombiner extends Reducer<Text, Text, Text, Text> {
-        @Override
-        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            // On ne prend que la première occurrence
-            for (Text v : values) {
-                context.write(key, v);
-                break;
-            }
-        }
-    }
-    */
 
     public static class DataReducer extends Reducer<Text, Text, NullWritable, Text> {
         private ObjectMapper objectMapper = new ObjectMapper();
 
         @Override
         protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            // Nous avons potentiellement plusieurs valeurs pour la même clé.
-            // Pour éliminer les doublons exacts et les parties répétées (même joueurs, même date),
-            // on ne prend que la première occurrence.
-            Text firstValue = null;
-            for (Text v : values) {
-                firstValue = v;
-                break;
-            }
-
-            if (firstValue != null) {
-                // Construire l'objet final JSON
-                JsonNode gameNode = objectMapper.readTree(firstValue.toString());
-                ObjectNode outputNode = objectMapper.createObjectNode();
-                outputNode.put("id", key.toString());
-                outputNode.set("game", gameNode);
-
-                context.write(NullWritable.get(), new Text(outputNode.toString()));
-            }
+            
         }
     }
 
