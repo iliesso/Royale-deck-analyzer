@@ -19,7 +19,10 @@ public class GameResume implements Writable, Cloneable {
     private PlayerResume player2;
 
     // Constructeurs
-    public GameResume() {}
+    public GameResume() {
+        this.player1 = new PlayerResume();
+        this.player2 = new PlayerResume();
+    }
 
     public GameResume(String date, String game, String mode, int round, String type, int winner, PlayerResume player1, PlayerResume player2) {
         this.date = date;
@@ -82,11 +85,6 @@ public class GameResume implements Writable, Cloneable {
         round = in.readInt();
         type = in.readUTF();
         winner = in.readInt();
-        if (player1 == null) {
-            System.out.println("player1 is null");
-        } else {
-            System.out.println(player1.toString());
-        }
         player1.readFields(in);              
         player2.readFields(in);
     }
