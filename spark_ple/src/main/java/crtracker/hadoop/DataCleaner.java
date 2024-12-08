@@ -14,6 +14,9 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -28,6 +31,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public class DataCleaner extends Configured implements Tool {
 
+    private static final Log LOG = LogFactory.getLog(DataCleaner.class);
+
     public static class DataMapper extends Mapper<Object, Text, Text, GameResume> {
         private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -36,6 +41,7 @@ public class DataCleaner extends Configured implements Tool {
             String jsonLine = value.toString();
             try {
                 GameResume gameResume = objectMapper.readValue(jsonLine, GameResume.class);
+                LOG.info("GameResume: " + value.toString());
                 // if (!checkDeck(gameResume.getPlayer1()) ||
                 // !checkDeck(gameResume.getPlayer2())) {
                 // return;
