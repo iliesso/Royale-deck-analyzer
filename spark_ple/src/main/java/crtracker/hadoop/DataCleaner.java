@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
@@ -34,22 +35,30 @@ public class DataCleaner extends Configured implements Tool {
     private static final Log LOG = LogFactory.getLog(DataCleaner.class);
 
     public static class DataMapper extends Mapper<Object, Text, Text, GameResume> {
-        private ObjectMapper objectMapper = new ObjectMapper();
+        private ObjectMapper jsonMapper = new ObjectMapper();
 
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            String jsonLine = value.toString();
+            // Parsing du JSON
+            String line = value.toString();
             try {
-                GameResume gameResume = objectMapper.readValue(jsonLine, GameResume.class);
-                LOG.info("GameResume: " + value.toString());
-                // if (!checkDeck(gameResume.getPlayer1()) ||
-                // !checkDeck(gameResume.getPlayer2())) {
-                // return;
-                // }
-                context.write(new Text(UUID.randomUUID().toString()), gameResume);
+                GameResume gameResume = jsonMapper.readValue(line, GameResume.class);
+
+                // Vérification de la longueur du deck
+                if (gameResume.getPlayer1().getDeck().length() == 16
+                        && gameResume.getPlayer2().getDeck().length() == 16) {
+                    // Construction de la clé unique
+                    String uniqueKey = buildKeyFromGame(gameResume);
+                    context.write(new Text(uniqueKey), gameResume);
+                }
             } catch (Exception e) {
-                System.err.println("Erreur de parsing JSON: " + e.getMessage());
+                // Ignorer la ligne si parsing ou condition échoue
             }
+        }
+
+        private String buildKeyFromGame(GameResume game) {
+            return game.getDate() + "_" + game.getMode() + "_" + game.getRound()
+                    + "_" + game.getPlayer1().getUtag() + "_" + game.getPlayer2().getUtag();
         }
 
         // Retourne true si le deck a 8 cartes
@@ -66,15 +75,19 @@ public class DataCleaner extends Configured implements Tool {
         // si elle est identique, ne pas l'ajouter
         public void reduce(Text key, Iterable<GameResume> values, Context context)
                 throws IOException, InterruptedException {
-            Set<GameResume> uniqueGames = new HashSet<>();
-            for (GameResume game : values) {
-                if (!uniqueGames.contains(game)) {
-                    uniqueGames.add(game);
-                }
-            }
-            for (GameResume uniqueGame : uniqueGames) {
-                context.write(key, uniqueGame);
-            }
+                    Set<GameResume> uniqueGames = new HashSet<>();
+                    for (GameResume g : values) {
+                        // Comme GameResume implémente equals/hashCode, l'ajout au Set élimine les doublons
+                        uniqueGames.add(cloneGameResume(g));
+                    }
+                    
+                    for (GameResume g : uniqueGames) {
+                        context.write(key, g);
+                    }
+        }
+        // Clone pour éviter les problèmes d'objets réutilisés par Hadoop
+        private GameResume cloneGameResume(GameResume g) {
+            return g.clone(); 
         }
     }
 
@@ -83,14 +96,17 @@ public class DataCleaner extends Configured implements Tool {
         public void reduce(Text key, Iterable<GameResume> values, Context context)
                 throws IOException, InterruptedException {
             Set<GameResume> uniqueGames = new HashSet<>();
-            for (GameResume game : values) {
-                if (!uniqueGames.contains(game)) {
-                    uniqueGames.add(game);
-                }
+            for (GameResume g : values) {
+                uniqueGames.add(cloneGameResume(g));
             }
-            for (GameResume uniqueGame : uniqueGames) {
-                context.write(key, new Text(uniqueGame.toString()));
+            
+            for (GameResume g : uniqueGames) {
+                context.write(key, new Text(g.toString()));
             }
+        }
+        
+        private GameResume cloneGameResume(GameResume g) {
+            return g.clone();
         }
     }
 

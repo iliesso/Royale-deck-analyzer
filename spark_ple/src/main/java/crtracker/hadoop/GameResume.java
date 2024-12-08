@@ -10,14 +10,14 @@ import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 
 public class GameResume implements Writable, Cloneable {
-    private String date = ""; // required
-    private String game = ""; // required
-    private String mode = ""; // required
-    private int round = -1;
-    private String type = "";
-    private int winner = -1;
-    private PlayerResume player1; // required
-    private PlayerResume player2; // required
+    private String date;  
+    private String game;  
+    private String mode;  
+    private int round;
+    private String type;
+    private int winner;
+    private PlayerResume player1;  
+    private PlayerResume player2;  
 
     // Getters
     public PlayerResume getPlayer1() {
@@ -27,6 +27,31 @@ public class GameResume implements Writable, Cloneable {
     public PlayerResume getPlayer2() {
         return player2;
     }
+
+    public String getDate() {
+        return date;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public int getRound(){
+        return round;
+    }
+
+    public GameResume clone(){
+        try {
+            return (GameResume)super.clone();
+        }
+        catch (Exception e) {
+            System.err.println(e.getStackTrace());
+            System.exit(-1);
+        }
+        return null;
+    }
+
+
 
     // Constructeurs
     public GameResume() {
@@ -74,7 +99,8 @@ public class GameResume implements Writable, Cloneable {
         return ((this.player1.compareTo(other1) || this.player1.compareTo(other2))
                 && (this.player2.compareTo(other1) || this.player2.compareTo(other2)));
     }
-
+    
+    
     // Implémentation de Writable
     @Override
     public void write(DataOutput out) throws IOException {
@@ -108,15 +134,19 @@ public class GameResume implements Writable, Cloneable {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null || getClass() != obj.getClass())
-            return false;
-        GameResume that = (GameResume) obj;
-        return this.compareTo(that);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GameResume other = (GameResume) o;
+        return round == other.round
+            && winner == other.winner
+            && Objects.equals(date, other.date)
+            && Objects.equals(game, other.game)
+            && Objects.equals(mode, other.mode)
+            && Objects.equals(type, other.type)
+            && Objects.equals(player1, other.player1)
+            && Objects.equals(player2, other.player2);
     }
-
     @Override
     public int hashCode() {
         return Objects.hash(game, mode, round, type, date, player1, player2);
