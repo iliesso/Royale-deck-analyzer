@@ -1,22 +1,34 @@
 package crtracker.hadoop;
 
+import org.apache.hadoop.io.Writable;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-import org.apache.hadoop.io.Writable;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class GameResume implements Writable, Cloneable {
-    private String date = ""; 
-    private String game = "";
-    private String mode = "";
+    private String date = ""; //required 
+    private String game = ""; //required
+    private String mode = ""; //required
     private int round = -1;
     private String type = "";
     private int winner = -1;
-    private PlayerResume player1;
-    private PlayerResume player2;
+    private PlayerResume player1; //required
+    private PlayerResume player2; //required
+
+    // Getters
+    public PlayerResume getPlayer1() {
+        return player1;
+    }
+
+    public PlayerResume getPlayer2() {
+        return player2;
+    }
 
     // Constructeurs
     public GameResume() {
@@ -91,7 +103,19 @@ public class GameResume implements Writable, Cloneable {
 
     @Override
     public String toString() {
-        return "GameResume [date=" + date + ", game=" + game + ", mode=" + mode + ", round=" + round
-                + ", type=" + type + ", winner=" + winner + ", player1=" + player1 + ", player2=" + player2 + "]";
+        return "date:" + date + ", game:" + game + ", mode:" + mode + ", round:" + round
+                + ", type:" + type + ", winner:" + winner + ", players[{" + player1.toString() + "}, {" + player2.toString() + "]";
     }
-}
+
+    
+    /*{
+    "date":"2024-09-23T16:04:46Z","game":"pathOfLegend","mode":"Ranked1v1_NewArena","round":0,"type":"pathOfLegend","winner":1,
+    "players":[
+    {"utag":"#U82CQ9C8Q","ctag":"#QYPVC8RG","trophies":5498,"exp":32,"league":1,"bestleague":2,"deck":"00010512213c5b5c","evo":"","tower":"6e","strength":10.75,"crown":0,"elixir":12.41,"touch":1,"score":0},
+    {"utag":"#8QRCGQJC","trophies":7109,"exp":43,"league":1,"bestleague":5,"deck":"080c111416235b66","evo":"08","tower":"70","strength":11.1875,"crown":1,"elixir":2.74,"touch":1,"score":0}
+    ]
+    }
+
+    */
+
+    }

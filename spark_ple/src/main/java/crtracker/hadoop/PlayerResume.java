@@ -5,7 +5,10 @@ import org.apache.hadoop.io.Writable;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class PlayerResume implements Writable, Cloneable {
     private String utag = "";
     private String ctag = "";
@@ -83,10 +86,10 @@ public class PlayerResume implements Writable, Cloneable {
 
     @Override
     public String toString() {
-        return "PlayerResume [utag=" + utag + ", ctag=" + ctag + ", trophies=" + trophies + ", exp=" + exp
-                + ", league=" + league + ", bestleague=" + bestleague + ", deck=" + deck + ", evo=" + evo
-                + ", tower=" + tower + ", strength=" + strength + ", crown=" + crown + ", elixir=" + elixir
-                + ", touch=" + touch + ", score=" + score + "]";
+        return "utag:" + utag + ", ctag:" + ctag + ", trophies:" + trophies + ", exp:" + exp
+                + ", league:" + league + ", bestleague:" + bestleague + ", deck:" + deck + ", evo:" + evo
+                + ", tower:" + tower + ", strength:" + strength + ", crown:" + crown + ", elixir:" + elixir
+                + ", touch:" + touch + ", score:" + score;
     }
 
     public boolean compareTo(PlayerResume player1) {

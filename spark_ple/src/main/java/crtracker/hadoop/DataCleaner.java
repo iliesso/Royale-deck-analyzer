@@ -32,96 +32,16 @@ public class DataCleaner extends Configured implements Tool {
 
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            String line = value.toString().trim();
-            if (line.isEmpty())
-                return;
-            JsonNode root;
+            String jsonLine = value.toString();
             try {
-                root = objectMapper.readTree(line);
+                GameResume gameResume = objectMapper.readValue(jsonLine, GameResume.class);
+                if (!checkDeck(gameResume.getPlayer1()) || !checkDeck(gameResume.getPlayer2())) {
+                    return;
+                }
+                context.write(new Text(UUID.randomUUID().toString()), gameResume);
             } catch (Exception e) {
-                return;
+                System.err.println("Erreur de parsing JSON: " + e.getMessage());
             }
-
-            // Vérification des champs requis
-            JsonNode players = root.path("players");
-            JsonNode dateNode = root.path("date");
-            if (players.isMissingNode() || players.size() != 2 || dateNode.isMissingNode()) {
-                // Ignorer la ligne si les vérifications de base échouent
-                return;
-            }
-            // Vérification des champs essentiels dans root
-            String game = getSafeText(root, "game");
-            String mode = getSafeText(root, "mode");
-            int round = getSafeInt(root, "round");
-            String type = getSafeText(root, "type");
-            int winner = getSafeInt(root, "winner");
-            // Si des champs essentiels sont manquants, ignorer la ligne
-            if (game.isEmpty() || mode.isEmpty() || type.isEmpty()) {
-                return;
-            }
-
-            String dateStr = dateNode.asText();
-
-            // Extraction et vérification des champs des joueurs
-            PlayerResume playerA = extractPlayer(players.get(0));
-            PlayerResume playerB = extractPlayer(players.get(1));
-
-            if (playerA == null || playerB == null) {
-                // Ignorer la ligne si l'un des joueurs est invalide
-                return;
-            }
-
-            // Vérification des decks
-            if (!checkDeck(playerA) || !checkDeck(playerB)) {
-                return;
-            }
-
-            // Émettre la ligne validée
-            GameResume gameResume = new GameResume(dateStr, game, mode, round, type, winner, playerA, playerB);
-            context.write(new Text(UUID.randomUUID().toString()), gameResume);
-        }
-
-        private String getSafeText(JsonNode node, String field) {
-            JsonNode fieldNode = node.path(field);
-            return fieldNode.isMissingNode() || fieldNode.isNull() ? "" : fieldNode.asText();
-        }
-        
-        private int getSafeInt(JsonNode node, String field) {
-            JsonNode fieldNode = node.path(field);
-            return fieldNode.isMissingNode() || fieldNode.isNull() ? 0 : fieldNode.asInt();
-        }
-        
-        private double getSafeDouble(JsonNode node, String field) {
-            JsonNode fieldNode = node.path(field);
-            return fieldNode.isMissingNode() || fieldNode.isNull() ? 0.0 : fieldNode.asDouble();
-        }
-
-        private PlayerResume extractPlayer(JsonNode playerNode) {
-            if (playerNode == null || playerNode.isMissingNode()) {
-                return null;
-            }
-    
-            String utag = getSafeText(playerNode, "utag");
-            String ctag = getSafeText(playerNode, "ctag");
-            int trophies = getSafeInt(playerNode, "trophies");
-            int exp = getSafeInt(playerNode, "exp");
-            int league = getSafeInt(playerNode, "league");
-            int bestleague = getSafeInt(playerNode, "bestleague");
-            String deck = getSafeText(playerNode, "deck");
-            String evo = getSafeText(playerNode, "evo");
-            String tower = getSafeText(playerNode, "tower");
-            double strength = getSafeDouble(playerNode, "strength");
-            int crown = getSafeInt(playerNode, "crown");
-            double elixir = getSafeDouble(playerNode, "elixir");
-            int touch = getSafeInt(playerNode, "touch");
-            int score = getSafeInt(playerNode, "score");
-    
-            // Vérifiez les champs essentiels des joueurs
-            if (utag.isEmpty() || ctag.isEmpty() || deck.isEmpty() || tower.isEmpty()) {
-                return null;
-            }
-    
-            return new PlayerResume(utag, ctag, trophies, exp, league, bestleague, deck, evo, tower, strength, crown, elixir, touch, score);
         }
 
         // Retourne true si le deck a 8 cartes
@@ -152,7 +72,7 @@ public class DataCleaner extends Configured implements Tool {
         }
     }
 
-    public static class DataReducer extends Reducer<Text, GameResume, Text, GameResume> {
+    public static class DataReducer extends Reducer<Text, GameResume, Text, Text> {
         // A nouveau eliminer les doublons
         public void reduce(Text key, Iterable<GameResume> values, Context context)
                 throws IOException, InterruptedException {
@@ -165,7 +85,7 @@ public class DataCleaner extends Configured implements Tool {
                 }
             }
             if (!isDuplicate) {
-                context.write(new Text(key.toString()), game);
+                context.write(new Text(key.toString()), new Text(game.toString()));
             }
         }
     }
