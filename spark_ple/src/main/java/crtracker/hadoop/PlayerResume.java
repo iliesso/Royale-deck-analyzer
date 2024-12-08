@@ -7,20 +7,20 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 public class PlayerResume implements Writable, Cloneable {
-    private String utag;
-    private String ctag;
-    private int trophies;
-    private int exp;
-    private int league;
-    private int bestleague;
-    private String deck;
-    private String evo;
-    private String tower;
-    private double strength;
-    private int crown;
-    private double elixir;
-    private int touch;
-    private int score;
+    private String utag = "";
+    private String ctag = "";
+    private int trophies = -1;
+    private int exp = -1;
+    private int league = -1;
+    private int bestleague = -1;
+    private String deck = "";
+    private String evo = "";
+    private String tower = "";
+    private double strength = -1.0;
+    private int crown = -1;
+    private double elixir = -1.0;
+    private int touch = -1;
+    private int score = -1;
 
     public PlayerResume() {
     }

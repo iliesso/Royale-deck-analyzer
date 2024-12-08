@@ -9,12 +9,12 @@ import java.time.temporal.ChronoUnit;
 import org.apache.hadoop.io.Writable;
 
 public class GameResume implements Writable, Cloneable {
-    private String date; 
-    private String game;
-    private String mode;
-    private int round;
-    private String type;
-    private int winner;
+    private String date = ""; 
+    private String game = "";
+    private String mode = "";
+    private int round = -1;
+    private String type = "";
+    private int winner = -1;
     private PlayerResume player1;
     private PlayerResume player2;
 
