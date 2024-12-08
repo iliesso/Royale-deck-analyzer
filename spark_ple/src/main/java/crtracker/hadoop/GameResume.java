@@ -9,18 +9,99 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class GameResume implements Writable, Cloneable {
-    private String date;  
-    private String game;  
-    private String mode;  
+
+    @JsonProperty("date")
+    private String date;
+
+    @JsonProperty("game")
+    private String game;
+
+    @JsonProperty("mode")
+    private String mode;
+
+    @JsonProperty("round")
     private int round;
+
+    @JsonProperty("type")
     private String type;
+
+    @JsonProperty("winner")
     private int winner;
+
+    @JsonProperty("players")
     private PlayerResume[] players;
 
-    // Getters
+    public GameResume() {
+        players = new PlayerResume[] { new PlayerResume(), new PlayerResume() };
+    }
+
+    // Getters & Setters
+    public String getDate() {
+        return date;
+    }
+
+    public void setDate(String date) {
+        this.date = date;
+    }
+
+    public String getGame() {
+        return game;
+    }
+
+    public void setGame(String game) {
+        this.game = game;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
+    public int getRound() {
+        return round;
+    }
+
+    public void setRound(int round) {
+        this.round = round;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public int getWinner() {
+        return winner;
+    }
+
+    public void setWinner(int winner) {
+        this.winner = winner;
+    }
+
     public PlayerResume[] getPlayers() {
         return players;
+    }
+
+    public void setPlayers(PlayerResume[] players) {
+        this.players = players;
+        if (players != null && players.length == 2 && players[0].getUtag() != null && players[1].getUtag() != null) {
+            if (players[0].getUtag().compareTo(players[1].getUtag()) > 0) {
+                PlayerResume temp = players[0];
+                players[0] = players[1];
+                players[1] = temp;
+            }
+        }
     }
 
     public PlayerResume getPlayer1() {
@@ -31,80 +112,20 @@ public class GameResume implements Writable, Cloneable {
         return players[1];
     }
 
-    public String getDate() {
-        return date;
-    }
-
-    public String getMode() {
-        return mode;
-    }
-
-    public int getRound(){
-        return round;
-    }
-
-    public GameResume clone(){
+    public GameResume clone() {
         try {
-            return (GameResume)super.clone();
-        }
-        catch (Exception e) {
+            GameResume copy = (GameResume) super.clone();
+            PlayerResume p1copy = players[0].clone();
+            PlayerResume p2copy = players[1].clone();
+            copy.players = new PlayerResume[] { p1copy, p2copy };
+            return copy;
+        } catch (Exception e) {
             System.err.println(e.getStackTrace());
             System.exit(-1);
         }
         return null;
     }
 
-
-
-    // Constructeurs
-    public GameResume() {
-        PlayerResume player1 = new PlayerResume();
-        PlayerResume player2 = new PlayerResume();
-        this.players = new PlayerResume[]{player1, player2};
-    }
-
-    public GameResume(String date, String game, String mode, int round, String type, int winner, PlayerResume player1,
-            PlayerResume player2) {
-        this.date = date;
-        this.game = game;
-        this.mode = mode;
-        this.round = round;
-        this.type = type;
-        this.winner = winner;
-        this.players = new PlayerResume[]{player1, player2};
-    }
-
-    // Comparer à une autre game
-    public boolean compareTo(GameResume other) {
-        if (this.game.equals(other.game) && this.mode.equals(other.mode) && this.round == other.round
-                && this.type.equals(other.type) && compareDate(other.date)
-                && comparePlayers(other.players[0], other.players[1])) {
-            return true;
-        }
-        return false;
-    }
-
-    public boolean compareDate(String otherDate) {
-        try {
-            Instant thisInstant = Instant.parse(this.date);
-            Instant otherInstant = Instant.parse(otherDate);
-
-            long differenceInSeconds = Math.abs(ChronoUnit.SECONDS.between(thisInstant, otherInstant));
-
-            return differenceInSeconds <= 10;
-        } catch (Exception e) {
-            System.err.println("Erreur lors de la comparaison des dates : " + e.getMessage());
-            return false;
-        }
-    }
-
-    public boolean comparePlayers(PlayerResume other1, PlayerResume other2) {
-        return ((this.players[0].compareTo(other1) || this.players[0].compareTo(other2))
-                && (this.players[1].compareTo(other1) || this.players[1].compareTo(other2)));
-    }
-    
-    
-    // Implémentation de Writable
     @Override
     public void write(DataOutput out) throws IOException {
         out.writeUTF(date);
@@ -131,44 +152,64 @@ public class GameResume implements Writable, Cloneable {
 
     @Override
     public String toString() {
-        return "date:" + date + ", game:" + game + ", mode:" + mode + ", round:" + round
-                + ", type:" + type + ", winner:" + winner + ", players[{" + players[0].toString() + "}, {"
-                + players[1].toString() + "}]";
+        return "{\"date\":\"" + date + "\", \"game\":\"" + game + "\", \"mode\":\"" + mode + "\", \"round\":" + round
+                + ", \"type\":\"" + type + "\", \"winner\":" + winner + ", \"players\":[{" + players[0].toString()
+                + "}, {"
+                + players[1].toString() + "}]}";
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (!(o instanceof GameResume))
+            return false;
         GameResume other = (GameResume) o;
-        return round == other.round
-            && winner == other.winner
-            && Objects.equals(date, other.date)
-            && Objects.equals(game, other.game)
-            && Objects.equals(mode, other.mode)
-            && Objects.equals(type, other.type)
-            && Objects.equals(players[0], other.players[0])
-            && Objects.equals(players[1], other.players[1]);
+
+        // Comparaison des champs simples
+        if (this.round != other.round || this.winner != other.winner)
+            return false;
+        if (!Objects.equals(this.game, other.game))
+            return false;
+        if (!Objects.equals(this.mode, other.mode))
+            return false;
+        if (!Objects.equals(this.type, other.type))
+            return false;
+
+        // Comparaison des joueurs (déjà triés par setPlayers)
+        if (!Objects.equals(this.players[0], other.players[0]))
+            return false;
+        if (!Objects.equals(this.players[1], other.players[1]))
+            return false;
+
+        // Comparaison des dates avec une tolérance de 10 secondes
+        try {
+            Instant thisInstant = Instant.parse(this.date);
+            Instant otherInstant = Instant.parse(other.date);
+            long differenceInSeconds = Math.abs(ChronoUnit.SECONDS.between(thisInstant, otherInstant));
+            if (differenceInSeconds > 10) {
+                return false;
+            }
+        } catch (Exception e) {
+            // Si la date ne peut être parsée, on considère que ce n'est pas égal
+            return false;
+        }
+
+        return true;
     }
+
     @Override
     public int hashCode() {
-        return Objects.hash(game, mode, round, type, date, players[0], players[1]);
+        // Normalisation de la date sur un intervalle de 10 secondes
+        long normalizedTime = 0;
+        try {
+            Instant thisInstant = Instant.parse(this.date);
+            long epochSeconds = thisInstant.getEpochSecond();
+            normalizedTime = (epochSeconds / 10L) * 10L; // arrondi à la dizaine de secondes
+        } catch (Exception e) {
+            // En cas de problème de parsing, normalizedTime reste 0
+        }
+
+        return Objects.hash(game, mode, round, type, normalizedTime, players[0], players[1]);
     }
-
-    /*
-     * {
-     * "date":"2024-09-23T16:04:46Z","game":"pathOfLegend","mode":
-     * "Ranked1v1_NewArena","round":0,"type":"pathOfLegend","winner":1,
-     * "players":[
-     * {"utag":"#U82CQ9C8Q","ctag":"#QYPVC8RG","trophies":5498,"exp":32,"league":1,
-     * "bestleague":2,"deck":"00010512213c5b5c","evo":"","tower":"6e","strength":10.
-     * 75,"crown":0,"elixir":12.41,"touch":1,"score":0},
-     * {"utag":"#8QRCGQJC","trophies":7109,"exp":43,"league":1,"bestleague":5,"deck"
-     * :"080c111416235b66","evo":"08","tower":"70","strength":11.1875,"crown":1,
-     * "elixir":2.74,"touch":1,"score":0}
-     * ]
-     * }
-     * 
-     */
-
 }
