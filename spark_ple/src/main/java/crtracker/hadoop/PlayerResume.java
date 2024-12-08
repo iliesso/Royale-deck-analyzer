@@ -77,6 +77,10 @@ public class PlayerResume implements Writable, Cloneable {
         score = in.readInt();
     }
 
+    public String getDeck() {
+        return deck;
+    }
+
     @Override
     public String toString() {
         return "PlayerResume [utag=" + utag + ", ctag=" + ctag + ", trophies=" + trophies + ", exp=" + exp

@@ -1,19 +1,10 @@
 package crtracker.hadoop;
 
 import java.io.IOException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.TimeZone;
 import java.util.UUID;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
@@ -23,7 +14,6 @@ import org.apache.hadoop.util.ToolRunner;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * DataCleaner:
@@ -36,13 +26,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  */
 public class DataCleaner extends Configured implements Tool {
 
-    public static class DataMapper extends Mapper<Object, Text, Text, Text> {
+    public static class DataMapper extends Mapper<Object, Text, Text, GameResume> {
         private ObjectMapper objectMapper = new ObjectMapper();
-
-        @Override
-        public void setup(Context context) {
-			Configuration conf = context.getConfiguration();
-		}
 
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
@@ -62,45 +47,61 @@ public class DataCleaner extends Configured implements Tool {
                 return; 
             }
 
-            // Extraction des informations nécessaires
-            String playerAstr;
-            String playerBstr;
-            String dateStr = dateNode.asText();
-            if (players.get(0).has("utag") && players.get(1).has("utag")) {
-                playerAstr = players.get(0).get("utag").asText();
-                playerBstr = players.get(1).get("utag").asText();
-            }
-            else {
-                return;
-            }
-            
-
-            // Vérification des decks
-            if (!checkDeck(players.get(0)) || !checkDeck(players.get(1))) {
-                return;
-            }
+            String dateStr = dateNode.asText();            
             
             PlayerResume playerA = new PlayerResume(players.get(0).get("utag").asText(), players.get(0).get("ctag").asText(), players.get(0).get("trophies").asInt(), players.get(0).get("exp").asInt(), players.get(0).get("league").asInt(), players.get(0).get("bestleague").asInt(), players.get(0).get("deck").asText(), players.get(0).get("evo").asText(), players.get(0).get("tower").asText(), players.get(0).get("strength").asDouble(), players.get(0).get("crown").asInt(), players.get(0).get("elixir").asDouble(), players.get(0).get("touch").asInt(), players.get(0).get("score").asInt());
             PlayerResume playerB = new PlayerResume(players.get(1).get("utag").asText(), players.get(1).get("ctag").asText(), players.get(1).get("trophies").asInt(), players.get(1).get("exp").asInt(), players.get(1).get("league").asInt(), players.get(1).get("bestleague").asInt(), players.get(1).get("deck").asText(), players.get(1).get("evo").asText(), players.get(1).get("tower").asText(), players.get(1).get("strength").asDouble(), players.get(1).get("crown").asInt(), players.get(1).get("elixir").asDouble(), players.get(1).get("touch").asInt(), players.get(1).get("score").asInt());
 
+            // Vérification des decks
+            if (!checkDeck(playerA) || !checkDeck(playerB)) {
+                return;
+            }
+
             // Émettre la ligne validée
             GameResume gameResume = new GameResume(dateStr, root.get("game").asText(), root.get("mode").asText(), root.get("round").asInt(), root.get("type").asText(), root.get("winner").asInt(), playerA, playerB);
-            context.write(new Text(UUID.randomUUID().toString()), new Text(objectMapper.writeValueAsString(gameResume)));
+            context.write(new Text(UUID.randomUUID().toString()), gameResume);
         }
 
-        private boolean checkDeck(JsonNode playerNode) {
-            if (!playerNode.has("deck")) return false;
-            String deck = playerNode.get("deck").asText();
-            return deck.length() == 16; 
+        //Retourne true si le deck a 8 cartes
+        private boolean checkDeck(PlayerResume playerResume) {
+            if (playerResume.getDeck().isEmpty()) return false;
+            return playerResume.getDeck().length() == 16; 
         }
     }
 
-    public static class DataReducer extends Reducer<Text, Text, NullWritable, Text> {
-        private ObjectMapper objectMapper = new ObjectMapper();
+    public static class DataCombiner extends Reducer<Text, GameResume, Text, GameResume> {
+        //parcourir toutes les parties 
+        //pour chaque partie, vérifier si elle est identique à une autre partie
+        //si elle est identique, ne pas l'ajouter
+        public void reduce(Text key, Iterable<GameResume> values, Context context) throws IOException, InterruptedException {
+            GameResume game = values.iterator().next();
+            boolean isDuplicate = false;
+            for (GameResume other : values) {
+                if (game.compareTo(other)) {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+            if (!isDuplicate) {
+                context.write(key, game);
+            }
+        }
+    }
 
-        @Override
-        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            
+    public static class DataReducer extends Reducer<Text, GameResume, Text, GameResume> {
+        //A nouveau eliminer les doublons
+        public void reduce(Text key, Iterable<GameResume> values, Context context) throws IOException, InterruptedException {
+            GameResume game = values.iterator().next();
+            boolean isDuplicate = false;
+            for (GameResume other : values) {
+                if (game.compareTo(other)) {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+            if (!isDuplicate) {
+                context.write(new Text(key.toString()), game);
+            }
         }
     }
 
@@ -116,8 +117,7 @@ public class DataCleaner extends Configured implements Tool {
         job.setJarByClass(DataCleaner.class);
 
         job.setMapperClass(DataMapper.class);
-        // Si vous souhaitez utiliser un combiner, décommentez :
-        // job.setCombinerClass(DataCombiner.class);
+        job.setCombinerClass(DataCombiner.class);
         job.setReducerClass(DataReducer.class);
 
         job.setOutputKeyClass(Text.class);
