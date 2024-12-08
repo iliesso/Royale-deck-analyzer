@@ -7,7 +7,6 @@ import java.io.DataOutput;
 import java.io.IOException;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PlayerResume implements Writable, Cloneable {
     private String utag = "";
@@ -93,7 +92,8 @@ public class PlayerResume implements Writable, Cloneable {
     }
 
     public boolean compareTo(PlayerResume player1) {
-        if (this.utag.equals(player1.utag) && this.deck.equals(player1.deck) && this.evo.equals(player1.evo) && this.tower.equals(player1.tower)) {
+        if (this.utag.equals(player1.utag) && this.deck.equals(player1.deck) && this.evo.equals(player1.evo)
+                && this.tower.equals(player1.tower)) {
             return true;
         }
         return false;

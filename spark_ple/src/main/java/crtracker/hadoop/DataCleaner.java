@@ -1,6 +1,8 @@
 package crtracker.hadoop;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import org.apache.hadoop.conf.Configuration;
@@ -12,7 +14,6 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -35,9 +36,10 @@ public class DataCleaner extends Configured implements Tool {
             String jsonLine = value.toString();
             try {
                 GameResume gameResume = objectMapper.readValue(jsonLine, GameResume.class);
-                if (!checkDeck(gameResume.getPlayer1()) || !checkDeck(gameResume.getPlayer2())) {
-                    return;
-                }
+                // if (!checkDeck(gameResume.getPlayer1()) ||
+                // !checkDeck(gameResume.getPlayer2())) {
+                // return;
+                // }
                 context.write(new Text(UUID.randomUUID().toString()), gameResume);
             } catch (Exception e) {
                 System.err.println("Erreur de parsing JSON: " + e.getMessage());
@@ -58,16 +60,14 @@ public class DataCleaner extends Configured implements Tool {
         // si elle est identique, ne pas l'ajouter
         public void reduce(Text key, Iterable<GameResume> values, Context context)
                 throws IOException, InterruptedException {
-            GameResume game = values.iterator().next();
-            boolean isDuplicate = false;
-            for (GameResume other : values) {
-                if (game.compareTo(other)) {
-                    isDuplicate = true;
-                    break;
+            Set<GameResume> uniqueGames = new HashSet<>();
+            for (GameResume game : values) {
+                if (!uniqueGames.contains(game)) {
+                    uniqueGames.add(game);
                 }
             }
-            if (!isDuplicate) {
-                context.write(key, game);
+            for (GameResume uniqueGame : uniqueGames) {
+                context.write(key, uniqueGame);
             }
         }
     }
@@ -76,16 +76,14 @@ public class DataCleaner extends Configured implements Tool {
         // A nouveau eliminer les doublons
         public void reduce(Text key, Iterable<GameResume> values, Context context)
                 throws IOException, InterruptedException {
-            GameResume game = values.iterator().next();
-            boolean isDuplicate = false;
-            for (GameResume other : values) {
-                if (game.compareTo(other)) {
-                    isDuplicate = true;
-                    break;
+            Set<GameResume> uniqueGames = new HashSet<>();
+            for (GameResume game : values) {
+                if (!uniqueGames.contains(game)) {
+                    uniqueGames.add(game);
                 }
             }
-            if (!isDuplicate) {
-                context.write(new Text(key.toString()), new Text(game.toString()));
+            for (GameResume uniqueGame : uniqueGames) {
+                context.write(key, new Text(uniqueGame.toString()));
             }
         }
     }
