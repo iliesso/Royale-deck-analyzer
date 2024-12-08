@@ -2,6 +2,9 @@ package crtracker.hadoop;
 
 import org.apache.hadoop.io.Writable;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -16,19 +19,15 @@ public class GameResume implements Writable, Cloneable {
     private int round;
     private String type;
     private int winner;
-    private PlayerResume[] players;
-
-    // Getters
-    public PlayerResume[] getPlayers() {
-        return players;
-    }
+    private PlayerResume player1;
+    private PlayerResume player2;
 
     public PlayerResume getPlayer1() {
-        return players[0];
+        return player1;
     }
 
     public PlayerResume getPlayer2() {
-        return players[1];
+        return player2;
     }
 
     public String getDate() {
@@ -43,24 +42,39 @@ public class GameResume implements Writable, Cloneable {
         return round;
     }
 
-    public GameResume clone(){
+
+    public Instant getDateAsInstant() {
+        return Instant.parse(this.date); 
+        // en supposant que la date soit au format ISO-8601, sinon adapter le parsing
+    }
+    
+    public String toJsonString() {
+        // Convertir l'objet en JSON (utiliser un ObjectMapper Jackson par exemple)
+        // ou implémenter votre propre logique
+        ObjectMapper mapper = new ObjectMapper();
         try {
-            return (GameResume)super.clone();
+            return mapper.writeValueAsString(this);
+        } catch (JsonProcessingException e) {
+            return "";
         }
-        catch (Exception e) {
-            System.err.println(e.getStackTrace());
-            System.exit(-1);
-        }
-        return null;
     }
 
-
+    @Override
+    public GameResume clone() {
+        try {
+            GameResume copy = (GameResume) super.clone();
+            copy.player1 = this.player1.clone();
+            copy.player2 = this.player2.clone();
+            return copy;
+        } catch (CloneNotSupportedException e) {
+            throw new RuntimeException(e);
+        }
+    }    
 
     // Constructeurs
     public GameResume() {
-        PlayerResume player1 = new PlayerResume();
-        PlayerResume player2 = new PlayerResume();
-        this.players = new PlayerResume[]{player1, player2};
+        this.player1 = new PlayerResume();
+        this.player2 = new PlayerResume();
     }
 
     public GameResume(String date, String game, String mode, int round, String type, int winner, PlayerResume player1,
@@ -71,14 +85,15 @@ public class GameResume implements Writable, Cloneable {
         this.round = round;
         this.type = type;
         this.winner = winner;
-        this.players = new PlayerResume[]{player1, player2};
+        this.player1 = player1;
+        this.player2 = player2;
     }
 
     // Comparer à une autre game
     public boolean compareTo(GameResume other) {
         if (this.game.equals(other.game) && this.mode.equals(other.mode) && this.round == other.round
                 && this.type.equals(other.type) && compareDate(other.date)
-                && comparePlayers(other.players[0], other.players[1])) {
+                && comparePlayers(other.player1, other.player2)) {
             return true;
         }
         return false;
@@ -99,8 +114,8 @@ public class GameResume implements Writable, Cloneable {
     }
 
     public boolean comparePlayers(PlayerResume other1, PlayerResume other2) {
-        return ((this.players[0].compareTo(other1) || this.players[0].compareTo(other2))
-                && (this.players[1].compareTo(other1) || this.players[1].compareTo(other2)));
+        return ((this.player1.compareTo(other1) || this.player1.compareTo(other2))
+                && (this.player2.compareTo(other1) || this.player2.compareTo(other2)));
     }
     
     
@@ -113,8 +128,8 @@ public class GameResume implements Writable, Cloneable {
         out.writeInt(round);
         out.writeUTF(type);
         out.writeInt(winner);
-        players[0].write(out);
-        players[1].write(out);
+        player1.write(out);
+        player2.write(out);
     }
 
     @Override
@@ -125,15 +140,15 @@ public class GameResume implements Writable, Cloneable {
         round = in.readInt();
         type = in.readUTF();
         winner = in.readInt();
-        players[0].readFields(in);
-        players[1].readFields(in);
+        player1.readFields(in);
+        player2.readFields(in);
     }
 
     @Override
     public String toString() {
         return "date:" + date + ", game:" + game + ", mode:" + mode + ", round:" + round
-                + ", type:" + type + ", winner:" + winner + ", players[{" + players[0].toString() + "}, {"
-                + players[1].toString() + "}]";
+                + ", type:" + type + ", winner:" + winner + ", players[{" + player1.toString() + "}, {"
+                + player2.toString() + "}]";
     }
 
     @Override
@@ -147,12 +162,12 @@ public class GameResume implements Writable, Cloneable {
             && Objects.equals(game, other.game)
             && Objects.equals(mode, other.mode)
             && Objects.equals(type, other.type)
-            && Objects.equals(players[0], other.players[0])
-            && Objects.equals(players[1], other.players[1]);
+            && Objects.equals(player1, other.player1)
+            && Objects.equals(player2, other.player2);
     }
     @Override
     public int hashCode() {
-        return Objects.hash(game, mode, round, type, date, players[0], players[1]);
+        return Objects.hash(game, mode, round, type, date, player1, player2);
     }
 
     /*

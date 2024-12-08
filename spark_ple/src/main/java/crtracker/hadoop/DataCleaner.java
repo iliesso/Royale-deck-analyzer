@@ -1,13 +1,22 @@
 package crtracker.hadoop;
 
 import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.UUID;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
@@ -15,106 +24,180 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import crtracker.ResumeCities.CityResume;
 
 /**
  * DataCleaner:
  * - Lecture et parsing JSON
  * - Validation du format
  * - Validation du nombre de cartes par deck (exactement 8)
- * - Création d'une clé unique basée sur les joueurs (triés par ordre lexical)
- * et la date arrondie à la minute.
+ * - Création d'une clé unique basée sur les joueurs (triés par ordre lexical) et la date arrondie à la minute.
  * - Élimination des doublons exacts et parties répétées (même clé).
  * - Sortie au format JSON : {"id":"<clé>","game": {...jeu original...}}
  */
 public class DataCleaner extends Configured implements Tool {
 
-    private static final Log LOG = LogFactory.getLog(DataCleaner.class);
-
     public static class DataMapper extends Mapper<Object, Text, Text, GameResume> {
-        private ObjectMapper jsonMapper = new ObjectMapper();
+        private ObjectMapper objectMapper = new ObjectMapper();
+
 
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             String line = value.toString();
+            if (line.isEmpty()) return;
+            JsonNode root;
             try {
-                GameResume gameResume = jsonMapper.readValue(line, GameResume.class);
-
-                // gameResume.getPlayers()[0] et gameResume.getPlayers()[1] correspondent aux deux joueurs
-                PlayerResume p1 = gameResume.getPlayers()[0];
-                PlayerResume p2 = gameResume.getPlayers()[1];
-
-                // Vérification de la longueur du deck
-                if (p1.getDeck() != null && p1.getDeck().length() == 16 
-                    && p2.getDeck() != null && p2.getDeck().length() == 16) {
-                    
-                    // Clé unique
-                    String uniqueKey = buildKeyFromGame(gameResume);
-                    context.write(new Text(uniqueKey), gameResume);
-                }
-
+                root = objectMapper.readTree(line);
             } catch (Exception e) {
-                // Logguez l’exception pour savoir pourquoi ça ne passe pas
-                System.err.println("Erreur parsing JSON: " + e.getMessage());
+                return;
             }
+
+            JsonNode players = root.get("players");
+            JsonNode dateNode = root.get("date");
+            if (players == null || players.size() != 2 || dateNode == null) {
+                return; 
+            }
+
+            String dateStr = dateNode.asText();
+
+            // Vérification des decks
+            if (!checkDeck(players.get(0)) || !checkDeck(players.get(1))) {
+                return;
+            }
+
+            //Création des player
+            // Création des PlayerResume avec valeurs par défaut si nécessaire
+        PlayerResume playerA = createPlayerResume(players.get(0));
+        PlayerResume playerB = createPlayerResume(players.get(1));
+
+        // Création de GameResume avec valeurs par défaut
+        String game = root.path("game").asText("unknown_game");
+        String mode = root.path("mode").asText("unknown_mode");
+        int round = root.path("round").asInt(0);
+        String type = root.path("type").asText("unknown_type");
+        int winner = root.path("winner").asInt(-1);
+
+        GameResume gameResume = new GameResume(dateStr, game, mode, round, type, winner, playerA, playerB);
+        String normalizedKey = game + "_" + mode + "_" + round + "_" 
+        + (playerA.getUtag().compareTo(playerB.getUtag()) < 0 
+           ? playerA.getUtag() + "_" + playerB.getUtag() 
+           : playerB.getUtag() + "_" + playerA.getUtag());
+        
+        context.write(new Text(normalizedKey), gameResume);
         }
 
-        private String buildKeyFromGame(GameResume game) {
-            return game.getDate() + "_" + game.getMode() + "_" + game.getRound()
-                    + "_" + game.getPlayer1().getUtag() + "_" + game.getPlayer2().getUtag();
+        private PlayerResume createPlayerResume(JsonNode playerNode) {
+            String utag = playerNode.path("utag").asText("unknown_utag");
+            String ctag = playerNode.path("ctag").asText("unknown_ctag");
+            int trophies = playerNode.path("trophies").asInt(0);
+            int exp = playerNode.path("exp").asInt(0);
+            int league = playerNode.path("league").asInt(0);
+            int bestleague = playerNode.path("bestleague").asInt(0);
+            String deck = playerNode.path("deck").asText("default_deck");
+            String evo = playerNode.path("evo").asText("");
+            String tower = playerNode.path("tower").asText("");
+            double strength = playerNode.path("strength").asDouble(0.0);
+            int crown = playerNode.path("crown").asInt(0);
+            double elixir = playerNode.path("elixir").asDouble(0.0);
+            int touch = playerNode.path("touch").asInt(0);
+            int score = playerNode.path("score").asInt(0);
+    
+            return new PlayerResume(utag, ctag, trophies, exp, league, bestleague, deck, evo, tower, strength, crown, elixir, touch, score);
         }
 
-        // Retourne true si le deck a 8 cartes
-        private boolean checkDeck(PlayerResume playerResume) {
-            if (playerResume.getDeck().isEmpty())
-                return false;
-            return playerResume.getDeck().length() == 16;
+        private boolean checkDeck(JsonNode playerNode) {
+            if (!playerNode.has("deck")) return false;
+            String deck = playerNode.get("deck").asText();
+            return deck.length() == 16; 
         }
     }
 
     public static class DataCombiner extends Reducer<Text, GameResume, Text, GameResume> {
-        // parcourir toutes les parties
-        // pour chaque partie, vérifier si elle est identique à une autre partie
-        // si elle est identique, ne pas l'ajouter
+        @Override
         public void reduce(Text key, Iterable<GameResume> values, Context context)
                 throws IOException, InterruptedException {
-                    Set<GameResume> uniqueGames = new HashSet<>();
-                    for (GameResume g : values) {
-                        // Comme GameResume implémente equals/hashCode, l'ajout au Set élimine les doublons
-                        uniqueGames.add(cloneGameResume(g));
-                    }
-                    
-                    for (GameResume g : uniqueGames) {
-                        context.write(key, g);
-                    }
-        }
-        // Clone pour éviter les problèmes d'objets réutilisés par Hadoop
-        private GameResume cloneGameResume(GameResume g) {
-            return g.clone(); 
-        }
-    }
-
-    public static class DataReducer extends Reducer<Text, GameResume, Text, Text> {
-        // A nouveau eliminer les doublons
-        public void reduce(Text key, Iterable<GameResume> values, Context context)
-                throws IOException, InterruptedException {
-            Set<GameResume> uniqueGames = new HashSet<>();
+    
+            // Copier les valeurs dans une liste pour les trier
+            List<GameResume> gameList = new ArrayList<>();
             for (GameResume g : values) {
-                uniqueGames.add(cloneGameResume(g));
+                // Cloner l'objet si nécessaire, car Hadoop réutilise les instances
+                gameList.add(g.clone());
             }
-            
-            for (GameResume g : uniqueGames) {
-                context.write(key, new Text(g.toString()));
+    
+            // Trier par date
+            gameList.sort(Comparator.comparing(GameResume::getDateAsInstant));
+    
+            // Filtrer les doublons très rapprochés dans le temps
+            List<GameResume> filtered = new ArrayList<>();
+            for (GameResume current : gameList) {
+                if (filtered.isEmpty()) {
+                    filtered.add(current);
+                } else {
+                    GameResume last = filtered.get(filtered.size() - 1);
+                    if (!isDuplicateWithinTimeRange(last, current, 10)) { // 10 secondes par exemple
+                        filtered.add(current);
+                    }
+                }
+            }
+    
+            // Émettre les parties filtrées
+            for (GameResume g : filtered) {
+                context.write(key, g);
             }
         }
-        
-        private GameResume cloneGameResume(GameResume g) {
-            return g.clone();
+    
+        // Méthode pour vérifier si deux parties sont considérées comme des doublons temporels
+        private boolean isDuplicateWithinTimeRange(GameResume g1, GameResume g2, int secondsRange) {
+            // Vérifier ici que g1 et g2 sont "identiques" sur les attributs de la partie
+            // On suppose que si on est dans le même reducer pour la même clé, c'est déjà
+            // le même game/mode/round/players, etc.
+            // Il ne reste qu'à vérifier la date
+    
+            long diff = Math.abs(g1.getDateAsInstant().getEpochSecond() - g2.getDateAsInstant().getEpochSecond());
+            return diff <= secondsRange;
         }
     }
+    
+    public static class DataReducer extends Reducer<Text, GameResume, Text, Text> {
+        @Override
+        public void reduce(Text key, Iterable<GameResume> values, Context context)
+                throws IOException, InterruptedException {
+            // Même logique que le combiner
+            List<GameResume> gameList = new ArrayList<>();
+            for (GameResume g : values) {
+                gameList.add(g.clone());
+            }
+    
+            gameList.sort(Comparator.comparing(GameResume::getDateAsInstant));
+    
+            List<GameResume> filtered = new ArrayList<>();
+            for (GameResume current : gameList) {
+                if (filtered.isEmpty()) {
+                    filtered.add(current);
+                } else {
+                    GameResume last = filtered.get(filtered.size() - 1);
+                    if (!isDuplicateWithinTimeRange(last, current, 10)) {
+                        filtered.add(current);
+                    }
+                }
+            }
+    
+            // Émettre la valeur finale en JSON par exemple
+            for (GameResume g : filtered) {
+                context.write(key, new Text(g.toJsonString())); 
+            }
+        }
+    
+        private boolean isDuplicateWithinTimeRange(GameResume g1, GameResume g2, int secondsRange) {
+            long diff = Math.abs(g1.getDateAsInstant().getEpochSecond() - g2.getDateAsInstant().getEpochSecond());
+            return diff <= secondsRange;
+        }
+    }
+    
 
     @Override
     public int run(String[] args) throws Exception {
@@ -128,23 +211,23 @@ public class DataCleaner extends Configured implements Tool {
         job.setJarByClass(DataCleaner.class);
 
         job.setMapperClass(DataMapper.class);
+        job.setMapOutputKeyClass(Text.class);
+		job.setMapOutputValueClass(GameResume.class);
         job.setCombinerClass(DataCombiner.class);
         job.setReducerClass(DataReducer.class);
-
-        job.setMapOutputKeyClass(Text.class);
-        job.setMapOutputValueClass(GameResume.class);
 
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
 
-        try {
+        try{
             FileInputFormat.setInputPaths(job, args[0]);
-            FileOutputFormat.setOutputPath(job, new org.apache.hadoop.fs.Path(args[1]));
-        } catch (Exception e) {
+        FileOutputFormat.setOutputPath(job, new org.apache.hadoop.fs.Path(args[1]));
+        }
+        catch (Exception e){
             System.out.println("Erreur lors de la configuration des entrées/sorties : " + e.getMessage());
             return -1;
         }
-
+        
         return job.waitForCompletion(true) ? 0 : 1;
     }
 

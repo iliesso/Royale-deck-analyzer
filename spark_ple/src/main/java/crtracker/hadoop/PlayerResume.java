@@ -87,6 +87,17 @@ public class PlayerResume implements Writable, Cloneable {
     }
 
     @Override
+    public PlayerResume clone() {
+        try {
+            return (PlayerResume) super.clone();
+        } catch (Exception e) {
+            System.err.println(e.getStackTrace());
+            System.exit(-1);
+        }
+        return null;
+    }
+
+    @Override
     public String toString() {
         return "utag:" + utag + ", ctag:" + ctag + ", trophies:" + trophies + ", exp:" + exp
                 + ", league:" + league + ", bestleague:" + bestleague + ", deck:" + deck + ", evo:" + evo
