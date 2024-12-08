@@ -82,7 +82,12 @@ public class GameResume implements Writable, Cloneable {
         round = in.readInt();
         type = in.readUTF();
         winner = in.readInt();
-        player1.readFields(in);
+        if (player1 == null) {
+            System.out.println("player1 is null");
+        } else {
+            System.out.println(player1.toString());
+        }
+        player1.readFields(in);              
         player2.readFields(in);
     }
 
