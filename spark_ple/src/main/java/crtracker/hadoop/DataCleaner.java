@@ -39,20 +39,26 @@ public class DataCleaner extends Configured implements Tool {
 
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            // Parsing du JSON
             String line = value.toString();
             try {
                 GameResume gameResume = jsonMapper.readValue(line, GameResume.class);
 
+                // gameResume.getPlayers()[0] et gameResume.getPlayers()[1] correspondent aux deux joueurs
+                PlayerResume p1 = gameResume.getPlayers()[0];
+                PlayerResume p2 = gameResume.getPlayers()[1];
+
                 // Vérification de la longueur du deck
-                if (gameResume.getPlayer1().getDeck().length() == 16
-                        && gameResume.getPlayer2().getDeck().length() == 16) {
-                    // Construction de la clé unique
+                if (p1.getDeck() != null && p1.getDeck().length() == 16 
+                    && p2.getDeck() != null && p2.getDeck().length() == 16) {
+                    
+                    // Clé unique
                     String uniqueKey = buildKeyFromGame(gameResume);
                     context.write(new Text(uniqueKey), gameResume);
                 }
+
             } catch (Exception e) {
-                // Ignorer la ligne si parsing ou condition échoue
+                // Logguez l’exception pour savoir pourquoi ça ne passe pas
+                System.err.println("Erreur parsing JSON: " + e.getMessage());
             }
         }
 
