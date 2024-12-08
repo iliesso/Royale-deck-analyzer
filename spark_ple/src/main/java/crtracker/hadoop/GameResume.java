@@ -9,9 +9,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class GameResume implements Writable, Cloneable {
     private String date = ""; // required
     private String game = ""; // required
