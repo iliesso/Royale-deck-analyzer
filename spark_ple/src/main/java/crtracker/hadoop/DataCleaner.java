@@ -4,19 +4,11 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.TimeZone;
-import java.util.UUID;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
@@ -24,94 +16,49 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-
-import crtracker.ResumeCities.CityResume;
 
 /**
  * DataCleaner:
  * - Lecture et parsing JSON
- * - Validation du format
  * - Validation du nombre de cartes par deck (exactement 8)
- * - Création d'une clé unique basée sur les joueurs (triés par ordre lexical) et la date arrondie à la minute.
- * - Élimination des doublons exacts et parties répétées (même clé).
- * - Sortie au format JSON : {"id":"<clé>","game": {...jeu original...}}
+ * - Création d'une clé unique basée sur les joueurs (triés par ordre alphabetique).
  */
+
 public class DataCleaner extends Configured implements Tool {
 
     public static class DataMapper extends Mapper<Object, Text, Text, GameResume> {
-        private ObjectMapper objectMapper = new ObjectMapper();
+        private ObjectMapper jsonMapper = new ObjectMapper();
 
 
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             String line = value.toString();
-            if (line.isEmpty()) return;
-            JsonNode root;
             try {
-                root = objectMapper.readTree(line);
+                GameResume gameResume = jsonMapper.readValue(line, GameResume.class);
+                PlayerResume p1 = gameResume.getPlayer1();
+                PlayerResume p2 = gameResume.getPlayer2();
+
+                if (!checkDeck(p1.getDeck()) || !checkDeck(p2.getDeck())) {
+
+                    String uniqueKey = buildKeyFromGame(gameResume);
+                    context.write(new Text(uniqueKey), gameResume);
+                }
             } catch (Exception e) {
-                return;
+                // On logue la ligne pour comprendre pourquoi elle ne passe pas
+                System.err.println("Erreur parsing JSON line: " + line);
+                System.err.println("Cause: " + e.getMessage());
             }
-
-            JsonNode players = root.get("players");
-            JsonNode dateNode = root.get("date");
-            if (players == null || players.size() != 2 || dateNode == null) {
-                return; 
-            }
-
-            String dateStr = dateNode.asText();
-
-            // Vérification des decks
-            if (!checkDeck(players.get(0)) || !checkDeck(players.get(1))) {
-                return;
-            }
-
-            //Création des player
-            // Création des PlayerResume avec valeurs par défaut si nécessaire
-        PlayerResume playerA = createPlayerResume(players.get(0));
-        PlayerResume playerB = createPlayerResume(players.get(1));
-
-        // Création de GameResume avec valeurs par défaut
-        String game = root.path("game").asText("unknown_game");
-        String mode = root.path("mode").asText("unknown_mode");
-        int round = root.path("round").asInt(0);
-        String type = root.path("type").asText("unknown_type");
-        int winner = root.path("winner").asInt(-1);
-
-        GameResume gameResume = new GameResume(dateStr, game, mode, round, type, winner, playerA, playerB);
-        String normalizedKey = game + "_" + mode + "_" + round + "_" 
-        + (playerA.getUtag().compareTo(playerB.getUtag()) < 0 
-           ? playerA.getUtag() + "_" + playerB.getUtag() 
-           : playerB.getUtag() + "_" + playerA.getUtag());
-        
-        context.write(new Text(normalizedKey), gameResume);
         }
 
-        private PlayerResume createPlayerResume(JsonNode playerNode) {
-            String utag = playerNode.path("utag").asText("unknown_utag");
-            String ctag = playerNode.path("ctag").asText("unknown_ctag");
-            int trophies = playerNode.path("trophies").asInt(0);
-            int exp = playerNode.path("exp").asInt(0);
-            int league = playerNode.path("league").asInt(0);
-            int bestleague = playerNode.path("bestleague").asInt(0);
-            String deck = playerNode.path("deck").asText("default_deck");
-            String evo = playerNode.path("evo").asText("");
-            String tower = playerNode.path("tower").asText("");
-            double strength = playerNode.path("strength").asDouble(0.0);
-            int crown = playerNode.path("crown").asInt(0);
-            double elixir = playerNode.path("elixir").asDouble(0.0);
-            int touch = playerNode.path("touch").asInt(0);
-            int score = playerNode.path("score").asInt(0);
-    
-            return new PlayerResume(utag, ctag, trophies, exp, league, bestleague, deck, evo, tower, strength, crown, elixir, touch, score);
+        private String buildKeyFromGame(GameResume gameResume){
+            return gameResume.getGame() + "_" + gameResume.getMode() + "_" + gameResume.getRound() + "_"
+            + (gameResume.getPlayer1().getUtag().compareTo(gameResume.getPlayer2().getUtag()) < 0
+                ? gameResume.getPlayer1().getUtag() + "_" + gameResume.getPlayer2().getUtag()
+                : gameResume.getPlayer2().getUtag() + "_" + gameResume.getPlayer1().getUtag());
         }
 
-        private boolean checkDeck(JsonNode playerNode) {
-            if (!playerNode.has("deck")) return false;
-            String deck = playerNode.get("deck").asText();
+        private boolean checkDeck(String deck) {
             return deck.length() == 16; 
         }
     }
