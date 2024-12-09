@@ -8,7 +8,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TimeZone;
@@ -118,52 +117,79 @@ public class DataCleaner extends Configured implements Tool {
     }
 
     public static class DataCombiner extends Reducer<Text, GameResume, Text, GameResume> {
-        public static GameResume filterDateDuplicates(Iterable<GameResume> values){
-            GameResume gameResume = null;
-            Iterator<GameResume> it = values.iterator();
-            if (it.hasNext()){
-                gameResume = it.next().clone();
-                while (it.hasNext()){
-                    if (!gameResume.compareSeconds(it.next())){
-                        return null;
-                    }
-                }
-            }
-            return gameResume;
-        }
-        
         @Override
         public void reduce(Text key, Iterable<GameResume> values, Context context)
                 throws IOException, InterruptedException {
-            GameResume gameResume = filterDateDuplicates(values);
-            if (gameResume != null){
-                context.write(key, gameResume);
+    
+            // Copier les valeurs dans une liste pour les trier
+            List<GameResume> gameList = new ArrayList<>();
+            for (GameResume g : values) {
+                // Cloner l'objet si nécessaire, car Hadoop réutilise les instances
+                gameList.add(g.clone());
             }
+    
+            // Trier par date
+            gameList.sort(Comparator.comparing(GameResume::getDateAsInstant));
+    
+            // Filtrer les doublons très rapprochés dans le temps
+            List<GameResume> filtered = new ArrayList<>();
+            for (GameResume current : gameList) {
+                if (filtered.isEmpty()) {
+                    filtered.add(current);
+                } else {
+                    GameResume last = filtered.get(filtered.size() - 1);
+                    if (!current.compareSeconds(last)) { // 10 secondes par exemple
+                        filtered.add(current);
+                    }
+                }
+            }
+    
+            // Émettre les parties filtrées
+            for (GameResume g : filtered) {
+                context.write(key, g);
+            }
+        }
+    
+        // Méthode pour vérifier si deux parties sont considérées comme des doublons temporels
+        private boolean isDuplicateWithinTimeRange(GameResume g1, GameResume g2, int secondsRange) {    
+            long diff = Math.abs(g1.getDateAsInstant().getEpochSecond() - g2.getDateAsInstant().getEpochSecond());
+            return diff <= secondsRange;
         }
     }
     
     public static class DataReducer extends Reducer<Text, GameResume, Text, Text> {
-        public static GameResume filterDateDuplicates(Iterable<GameResume> values){
-            GameResume gameResume = null;
-            Iterator<GameResume> it = values.iterator();
-            if (it.hasNext()){
-                gameResume = it.next().clone();
-                while (it.hasNext()){
-                    if (!gameResume.compareSeconds(it.next())){
-                        return null;
-                    }
-                }
-            }
-            return gameResume;
-        }
-        
         @Override
         public void reduce(Text key, Iterable<GameResume> values, Context context)
                 throws IOException, InterruptedException {
-            GameResume gameResume = filterDateDuplicates(values);
-            if (gameResume != null){
-                context.write(key, new Text(gameResume.toJsonString()));
+            // Même logique que le combiner
+            List<GameResume> gameList = new ArrayList<>();
+            for (GameResume g : values) {
+                gameList.add(g.clone());
             }
+    
+            gameList.sort(Comparator.comparing(GameResume::getDateAsInstant));
+    
+            List<GameResume> filtered = new ArrayList<>();
+            for (GameResume current : gameList) {
+                if (filtered.isEmpty()) {
+                    filtered.add(current);
+                } else {
+                    GameResume last = filtered.get(filtered.size() - 1);
+                    if (!isDuplicateWithinTimeRange(last, current, 10)) {
+                        filtered.add(current);
+                    }
+                }
+            }
+    
+            // Émettre la valeur finale en JSON par exemple
+            for (GameResume g : filtered) {
+                context.write(key, new Text(g.toJsonString())); 
+            }
+        }
+    
+        private boolean isDuplicateWithinTimeRange(GameResume g1, GameResume g2, int secondsRange) {
+            long diff = Math.abs(g1.getDateAsInstant().getEpochSecond() - g2.getDateAsInstant().getEpochSecond());
+            return diff <= secondsRange;
         }
     }
     
