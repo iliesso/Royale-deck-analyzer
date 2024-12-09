@@ -182,16 +182,6 @@ public class GameResume implements Writable, Cloneable {
         return true;
     }
 
-    public boolean compareDate(GameResume other) {
-        // Comparaison des dates avec une tolérance de 10 secondes
-        try {
-            long diff = Math.abs(this.getDateAsInstant().getEpochSecond() - other.getDateAsInstant().getEpochSecond());
-            return diff <= 10;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
     /*
      * {
      * "date":"2024-09-23T16:04:46Z","game":"pathOfLegend","mode":
