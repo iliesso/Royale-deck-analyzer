@@ -144,42 +144,14 @@ public class GameResume implements Writable, Cloneable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (!(o instanceof GameResume))
-            return false;
         GameResume other = (GameResume) o;
-
-        // Comparaison des champs simples
-        if (this.round != other.round || this.winner != other.winner)
-            return false;
-        if (!Objects.equals(this.game, other.game))
-            return false;
-        if (!Objects.equals(this.mode, other.mode))
-            return false;
-        if (!Objects.equals(this.type, other.type))
-            return false;
-
-        // Comparaison des joueurs (déjà triés par setPlayers)
-        if (!Objects.equals(this.players[0], other.players[0]))
-            return false;
-        if (!Objects.equals(this.players[1], other.players[1]))
-            return false;
-
         // Comparaison des dates avec une tolérance de 10 secondes
         try {
-            Instant thisInstant = Instant.parse(this.date);
-            Instant otherInstant = Instant.parse(other.date);
-            long differenceInSeconds = Math.abs(ChronoUnit.SECONDS.between(thisInstant, otherInstant));
-            if (differenceInSeconds > 10) {
-                return false;
-            }
+            long diff = Math.abs(this.getDateAsInstant().getEpochSecond() - other.getDateAsInstant().getEpochSecond());
+            return diff <= 10;
         } catch (Exception e) {
-            // Si la date ne peut être parsée, on considère que ce n'est pas égal
             return false;
         }
-
-        return true;
     }
 
     /*

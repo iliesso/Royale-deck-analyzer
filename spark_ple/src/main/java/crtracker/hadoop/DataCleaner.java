@@ -5,6 +5,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
@@ -18,15 +19,9 @@ import org.apache.hadoop.util.ToolRunner;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-/**
- * DataCleaner:
- * - Lecture et parsing JSON
- * - Validation du nombre de cartes par deck (exactement 8)
- * - Création d'une clé unique basée sur les joueurs (triés par ordre alphabetique).
- */
-
 public class DataCleaner extends Configured implements Tool {
 
+    //Map
     public static class DataMapper extends Mapper<Object, Text, Text, GameResume> {
         private ObjectMapper jsonMapper = new ObjectMapper();
 
@@ -52,7 +47,7 @@ public class DataCleaner extends Configured implements Tool {
         }
 
         private String buildKeyFromGame(GameResume gameResume){
-            return gameResume.getGame() + "_" + gameResume.getMode() + "_" + gameResume.getRound() + "_"
+            return gameResume.getDateAsInstant() + "_" + gameResume.getGame() + "_" + gameResume.getMode() + "_" + gameResume.getRound() + "_"
             + (gameResume.getPlayer1().getUtag().compareTo(gameResume.getPlayer2().getUtag()) < 0
                 ? gameResume.getPlayer1().getUtag() + "_" + gameResume.getPlayer2().getUtag()
                 : gameResume.getPlayer2().getUtag() + "_" + gameResume.getPlayer1().getUtag());
@@ -63,52 +58,39 @@ public class DataCleaner extends Configured implements Tool {
         }
     }
 
+    //Combiner
     public static class DataCombiner extends Reducer<Text, GameResume, Text, GameResume> {
-        @Override
-        public void reduce(Text key, Iterable<GameResume> values, Context context)
-                throws IOException, InterruptedException {
-    
-            // Copier les valeurs dans une liste pour les trier
-            List<GameResume> gameList = new ArrayList<>();
-            for (GameResume g : values) {
-                // Cloner l'objet si nécessaire, car Hadoop réutilise les instances
-                gameList.add(g.clone());
-            }
-    
-            // Trier par date
-            gameList.sort(Comparator.comparing(GameResume::getDateAsInstant));
-    
-            // Filtrer les doublons très rapprochés dans le temps
-            List<GameResume> filtered = new ArrayList<>();
-            for (GameResume current : gameList) {
-                if (filtered.isEmpty()) {
-                    filtered.add(current);
-                } else {
-                    GameResume last = filtered.get(filtered.size() - 1);
-                    if (!isDuplicateWithinTimeRange(last, current, 10)) { // 10 secondes par exemple
-                        filtered.add(current);
+        public static GameResume filterDateDuplicates(Iterable<GameResume> values){
+            GameResume gameResume = null;
+            Iterator<GameResume> it = values.iterator();
+            if (it.hasNext()){
+                gameResume = it.next().clone();
+                while (it.hasNext()){
+                    if (!gameResume.equals(it.next())){
+                        return null;
                     }
                 }
             }
-    
-            // Émettre les parties filtrées
-            for (GameResume g : filtered) {
-                context.write(key, g);
+            return gameResume;
+        }
+        
+        @Override
+        public void reduce(Text key, Iterable<GameResume> values, Context context)
+                throws IOException, InterruptedException {
+            GameResume gameResume = filterDateDuplicates(values);
+            if (gameResume != null){
+                context.write(key, gameResume);
             }
         }
     
-        // Méthode pour vérifier si deux parties sont considérées comme des doublons temporels
         private boolean isDuplicateWithinTimeRange(GameResume g1, GameResume g2, int secondsRange) {
-            // Vérifier ici que g1 et g2 sont "identiques" sur les attributs de la partie
-            // On suppose que si on est dans le même reducer pour la même clé, c'est déjà
-            // le même game/mode/round/players, etc.
-            // Il ne reste qu'à vérifier la date
-    
+
             long diff = Math.abs(g1.getDateAsInstant().getEpochSecond() - g2.getDateAsInstant().getEpochSecond());
             return diff <= secondsRange;
         }
     }
     
+    //Reduce
     public static class DataReducer extends Reducer<Text, GameResume, Text, Text> {
         @Override
         public void reduce(Text key, Iterable<GameResume> values, Context context)
