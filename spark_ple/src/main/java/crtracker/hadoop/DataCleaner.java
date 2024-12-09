@@ -47,7 +47,7 @@ public class DataCleaner extends Configured implements Tool {
         }
 
         private String buildKeyFromGame(GameResume gameResume){
-            return gameResume.getDateAsInstant() + "_" + gameResume.getGame() + "_" + gameResume.getMode() + "_" + gameResume.getRound() + "_"
+            return gameResume.getGame() + "_" + gameResume.getMode() + "_" + gameResume.getRound() + "_"
             + (gameResume.getPlayer1().getUtag().compareTo(gameResume.getPlayer2().getUtag()) < 0
                 ? gameResume.getPlayer1().getUtag() + "_" + gameResume.getPlayer2().getUtag()
                 : gameResume.getPlayer2().getUtag() + "_" + gameResume.getPlayer1().getUtag());
