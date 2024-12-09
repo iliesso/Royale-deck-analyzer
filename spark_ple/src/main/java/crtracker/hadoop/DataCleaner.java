@@ -60,13 +60,14 @@ public class DataCleaner extends Configured implements Tool {
 
     //Combiner
     public static class DataCombiner extends Reducer<Text, GameResume, Text, GameResume> {
+        
         public static GameResume filterDateDuplicates(Iterable<GameResume> values){
             GameResume gameResume = null;
             Iterator<GameResume> it = values.iterator();
             if (it.hasNext()){
                 gameResume = it.next().clone();
                 while (it.hasNext()){
-                    if (!gameResume.equals(it.next())){
+                    if (!gameResume.compareDate(it.next())){
                         return null;
                     }
                 }
@@ -81,12 +82,6 @@ public class DataCleaner extends Configured implements Tool {
             if (gameResume != null){
                 context.write(key, gameResume);
             }
-        }
-    
-        private boolean isDuplicateWithinTimeRange(GameResume g1, GameResume g2, int secondsRange) {
-
-            long diff = Math.abs(g1.getDateAsInstant().getEpochSecond() - g2.getDateAsInstant().getEpochSecond());
-            return diff <= secondsRange;
         }
     }
     
