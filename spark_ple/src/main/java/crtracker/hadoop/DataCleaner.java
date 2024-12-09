@@ -1,22 +1,12 @@
 package crtracker.hadoop;
 
 import java.io.IOException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.TimeZone;
-import java.util.UUID;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
@@ -26,19 +16,7 @@ import org.apache.hadoop.util.ToolRunner;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import crtracker.ResumeCities.CityResume;
-
-/**
- * DataCleaner:
- * - Lecture et parsing JSON
- * - Validation du format
- * - Validation du nombre de cartes par deck (exactement 8)
- * - Création d'une clé unique basée sur les joueurs (triés par ordre lexical) et la date arrondie à la minute.
- * - Élimination des doublons exacts et parties répétées (même clé).
- * - Sortie au format JSON : {"id":"<clé>","game": {...jeu original...}}
- */
 public class DataCleaner extends Configured implements Tool {
 
     public static class DataMapper extends Mapper<Object, Text, Text, GameResume> {
@@ -64,17 +42,13 @@ public class DataCleaner extends Configured implements Tool {
 
             String dateStr = dateNode.asText();
 
-            // Vérification des decks
             if (!checkDeck(players.get(0)) || !checkDeck(players.get(1))) {
                 return;
             }
 
-            //Création des player
-            // Création des PlayerResume avec valeurs par défaut si nécessaire
         PlayerResume playerA = createPlayerResume(players.get(0));
         PlayerResume playerB = createPlayerResume(players.get(1));
 
-        // Création de GameResume avec valeurs par défaut
         String game = root.path("game").asText("unknown_game");
         String mode = root.path("mode").asText("unknown_mode");
         int round = root.path("round").asInt(0);
@@ -121,39 +95,29 @@ public class DataCleaner extends Configured implements Tool {
         public void reduce(Text key, Iterable<GameResume> values, Context context)
                 throws IOException, InterruptedException {
     
-            // Copier les valeurs dans une liste pour les trier
             List<GameResume> gameList = new ArrayList<>();
             for (GameResume g : values) {
-                // Cloner l'objet si nécessaire, car Hadoop réutilise les instances
                 gameList.add(g.clone());
             }
     
             // Trier par date
             gameList.sort(Comparator.comparing(GameResume::getDateAsInstant));
     
-            // Filtrer les doublons très rapprochés dans le temps
             List<GameResume> filtered = new ArrayList<>();
             for (GameResume current : gameList) {
                 if (filtered.isEmpty()) {
                     filtered.add(current);
                 } else {
                     GameResume last = filtered.get(filtered.size() - 1);
-                    if (!current.compareSeconds(last)) { // 10 secondes par exemple
+                    if (!current.compareSeconds(last)) { 
                         filtered.add(current);
                     }
                 }
             }
     
-            // Émettre les parties filtrées
             for (GameResume g : filtered) {
                 context.write(key, g);
             }
-        }
-    
-        // Méthode pour vérifier si deux parties sont considérées comme des doublons temporels
-        private boolean isDuplicateWithinTimeRange(GameResume g1, GameResume g2, int secondsRange) {    
-            long diff = Math.abs(g1.getDateAsInstant().getEpochSecond() - g2.getDateAsInstant().getEpochSecond());
-            return diff <= secondsRange;
         }
     }
     
@@ -161,7 +125,6 @@ public class DataCleaner extends Configured implements Tool {
         @Override
         public void reduce(Text key, Iterable<GameResume> values, Context context)
                 throws IOException, InterruptedException {
-            // Même logique que le combiner
             List<GameResume> gameList = new ArrayList<>();
             for (GameResume g : values) {
                 gameList.add(g.clone());
@@ -175,21 +138,15 @@ public class DataCleaner extends Configured implements Tool {
                     filtered.add(current);
                 } else {
                     GameResume last = filtered.get(filtered.size() - 1);
-                    if (!isDuplicateWithinTimeRange(last, current, 10)) {
+                    if (!current.compareSeconds(last)) {
                         filtered.add(current);
                     }
                 }
             }
     
-            // Émettre la valeur finale en JSON par exemple
             for (GameResume g : filtered) {
                 context.write(key, new Text(g.toJsonString())); 
             }
-        }
-    
-        private boolean isDuplicateWithinTimeRange(GameResume g1, GameResume g2, int secondsRange) {
-            long diff = Math.abs(g1.getDateAsInstant().getEpochSecond() - g2.getDateAsInstant().getEpochSecond());
-            return diff <= secondsRange;
         }
     }
     
