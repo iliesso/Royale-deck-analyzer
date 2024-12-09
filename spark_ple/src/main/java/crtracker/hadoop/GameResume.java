@@ -99,7 +99,21 @@ public class GameResume implements Writable, Cloneable {
         return false;
     }
 
-    public boolean compareDate(GameResume other) {
+    public boolean compareDate(String otherDate) {
+        try {
+            Instant thisInstant = Instant.parse(this.date);
+            Instant otherInstant = Instant.parse(otherDate);
+
+            long differenceInSeconds = Math.abs(ChronoUnit.SECONDS.between(thisInstant, otherInstant));
+
+            return differenceInSeconds <= 10;
+        } catch (Exception e) {
+            System.err.println("Erreur lors de la comparaison des dates : " + e.getMessage());
+            return false;
+        }
+    }
+    
+    public boolean compareSeconds(GameResume other) {
         // Comparaison des dates avec une tolérance de 10 secondes
         try {
             long diff = Math.abs(this.getDateAsInstant().getEpochSecond() - other.getDateAsInstant().getEpochSecond());
@@ -171,7 +185,7 @@ public class GameResume implements Writable, Cloneable {
             return false;
         }
     }
-
+    
     @Override
     public int hashCode() {
         return Objects.hash(game, mode, round, type, date, player1, player2);
