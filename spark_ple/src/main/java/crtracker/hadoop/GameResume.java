@@ -165,6 +165,17 @@ public class GameResume implements Writable, Cloneable {
             && Objects.equals(player1, other.player1)
             && Objects.equals(player2, other.player2);
     }
+
+    public boolean compareDate(GameResume other) {
+        // Comparaison des dates avec une tolérance de 10 secondes
+        try {
+            long diff = Math.abs(this.getDateAsInstant().getEpochSecond() - other.getDateAsInstant().getEpochSecond());
+            return diff <= 10;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
     @Override
     public int hashCode() {
         return Objects.hash(game, mode, round, type, date, player1, player2);
