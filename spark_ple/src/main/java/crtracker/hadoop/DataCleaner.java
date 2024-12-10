@@ -167,7 +167,7 @@ public class DataCleaner extends Configured implements Tool {
 		job.setMapOutputValueClass(GameResume.class);
         job.setCombinerClass(DataCombiner.class);
         job.setReducerClass(DataReducer.class);
-        job.setNumReduceTasks(24);
+        job.setNumReduceTasks(1);
 
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(Text.class);
